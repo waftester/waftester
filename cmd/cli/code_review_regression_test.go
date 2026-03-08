@@ -232,3 +232,27 @@ func TestAutoscanReportAfterAllPhases(t *testing.T) {
 		t.Error("scanDuration must be computed after assessment phase, not before")
 	}
 }
+
+// C2 (logical-order): Discovery results must be persisted to discoveryFile after discovery phase.
+func TestAutoscanDiscoveryResultsPersisted(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// There must be a WriteAtomicJSON call targeting discoveryFile
+	if !strings.Contains(content, "WriteAtomicJSON(discoveryFile, discResult") {
+		t.Error("discovery results must be persisted with WriteAtomicJSON(discoveryFile, discResult, ...)")
+	}
+
+	// The write must appear after discovery completes (markPhaseCompleted("discovery"))
+	markIdx := strings.Index(content, `markPhaseCompleted("discovery")`)
+	writeIdx := strings.Index(content, "WriteAtomicJSON(discoveryFile, discResult")
+	if markIdx < 0 || writeIdx < 0 {
+		t.Fatal("expected discovery markPhaseCompleted and WriteAtomicJSON markers")
+	}
+	if writeIdx < markIdx {
+		t.Error("discovery WriteAtomicJSON should appear after markPhaseCompleted")
+	}
+}

@@ -741,6 +741,11 @@ func runAutoScan() {
 		// Mark discovery phase complete for resume
 		markPhaseCompleted("discovery")
 		discoveryRanFresh = true
+
+		// Persist discovery results so they survive resume and appear in workspace
+		if err := iohelper.WriteAtomicJSON(discoveryFile, discResult, 0644); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to write discovery results: %v", err))
+		}
 	}
 
 	// Update progress after discovery
