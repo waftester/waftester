@@ -69,22 +69,34 @@ func loadUnifiedByCategory(payloadDir, templateDir, category string, verbose boo
 		return nil, fmt.Errorf("filtering category %q: %w", category, err)
 	}
 
-	// Also get raw JSON payloads for backward-compatible callers
-	jp, err := provider.JSONPayloads()
-	if err != nil {
-		return nil, fmt.Errorf("extracting JSON payloads: %w", err)
+	// Convert unified payloads to payloads.Payload for backward-compatible callers
+	result := make([]payloads.Payload, len(unified))
+	for i, up := range unified {
+		result[i] = payloads.Payload{
+			ID:            up.ID,
+			Payload:       up.Payload,
+			Category:      up.Category,
+			Method:        up.Method,
+			SeverityHint:  up.Severity,
+			Tags:          up.Tags,
+			ExpectedBlock: up.ExpectedBlock,
+		}
 	}
 
-	// Apply category filter to JSON payloads
-	filtered := payloads.Filter(jp, category, "")
-
-	if verbose && len(unified) > len(filtered) {
-		extra := len(unified) - len(filtered)
-		ui.PrintInfo(fmt.Sprintf("Category %q: %d JSON + %d Nuclei payloads",
-			category, len(filtered), extra))
+	if verbose {
+		stats, _ := provider.GetStats()
+		if stats.NucleiPayloads > 0 {
+			jsonCount := stats.JSONPayloads
+			nucleiCount := len(result) - jsonCount
+			if nucleiCount < 0 {
+				nucleiCount = 0
+			}
+			ui.PrintInfo(fmt.Sprintf("Category %q: %d JSON + %d Nuclei payloads",
+				category, jsonCount, nucleiCount))
+		}
 	}
 
-	return filtered, nil
+	return result, nil
 }
 
 // getUnifiedFuzzPayloads returns payload strings suitable for protocol fuzzing
