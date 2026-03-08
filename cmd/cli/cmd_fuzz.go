@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -198,7 +199,15 @@ func runFuzz() {
 				ui.PrintError(fmt.Sprintf("Invalid wordlist URL: %v", reqErr))
 				os.Exit(1)
 			}
-			resp, err := http.DefaultClient.Do(req)
+			dlClient := http.DefaultClient
+			if *skipVerify {
+				dlClient = &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // user-requested via -k flag
+					},
+				}
+			}
+			resp, err := dlClient.Do(req)
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to download wordlist: %v", err))
 				os.Exit(1)

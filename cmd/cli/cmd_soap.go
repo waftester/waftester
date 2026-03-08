@@ -284,7 +284,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 		}
 
 		// Wrap payload in SOAP body
-		soapBody := fmt.Sprintf(`<TestOperation><value>%s</value></TestOperation>`, payload)
+		soapBody := fmt.Sprintf(`<TestOperation><value><![CDATA[%s]]></value></TestOperation>`, payload)
 
 		req := &soap.Request{
 			Body: soapBody,

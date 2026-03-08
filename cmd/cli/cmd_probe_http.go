@@ -67,7 +67,7 @@ func makeProbeHTTPRequest(ctx context.Context, target string, timeout time.Durat
 // makeProbeHTTPRequestWithOptions performs HTTP request with full options
 func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout time.Duration, opts ProbeHTTPOptions) (*http.Response, error) {
 	maxRedirects := opts.MaxRedirects
-	if maxRedirects <= 0 {
+	if maxRedirects < 0 {
 		maxRedirects = 10
 	}
 

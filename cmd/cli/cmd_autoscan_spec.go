@@ -331,7 +331,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		ui.PrintWarning(fmt.Sprintf("Failed to marshal scan output: %v", marshalErr))
 	}
 
-	if cfg.outFlags.JSONMode {
+	if cfg.outFlags.JSONMode && data != nil {
 		fmt.Println(string(data))
 	} else {
 		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", elapsed))

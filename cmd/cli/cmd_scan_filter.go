@@ -669,6 +669,229 @@ func applyFilters(result *ScanResult, f *scanFilterConfig) {
 		}
 	}
 
+	// ── Injection scanners ([]Result, own Severity/Evidence, no Remediation) ──
+
+	// LDAP
+	if len(result.LDAP) > 0 {
+		if !f.includeCategory("ldap") {
+			result.LDAP = nil
+		} else {
+			filtered := result.LDAP[:0]
+			for i := range result.LDAP {
+				v := &result.LDAP[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.LDAP = filtered
+			for i := range filtered {
+				tally("ldap", filtered[i].Severity)
+			}
+		}
+	}
+
+	// SSI
+	if len(result.SSI) > 0 {
+		if !f.includeCategory("ssi") {
+			result.SSI = nil
+		} else {
+			filtered := result.SSI[:0]
+			for i := range result.SSI {
+				v := &result.SSI[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.SSI = filtered
+			for i := range filtered {
+				tally("ssi", filtered[i].Severity)
+			}
+		}
+	}
+
+	// XPath
+	if len(result.XPath) > 0 {
+		if !f.includeCategory("xpath") {
+			result.XPath = nil
+		} else {
+			filtered := result.XPath[:0]
+			for i := range result.XPath {
+				v := &result.XPath[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.XPath = filtered
+			for i := range filtered {
+				tally("xpath", filtered[i].Severity)
+			}
+		}
+	}
+
+	// XMLInjection
+	if len(result.XMLInjection) > 0 {
+		if !f.includeCategory("xmlinjection") {
+			result.XMLInjection = nil
+		} else {
+			filtered := result.XMLInjection[:0]
+			for i := range result.XMLInjection {
+				v := &result.XMLInjection[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.XMLInjection = filtered
+			for i := range filtered {
+				tally("xmlinjection", filtered[i].Severity)
+			}
+		}
+	}
+
+	// RFI
+	if len(result.RFI) > 0 {
+		if !f.includeCategory("rfi") {
+			result.RFI = nil
+		} else {
+			filtered := result.RFI[:0]
+			for i := range result.RFI {
+				v := &result.RFI[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.RFI = filtered
+			for i := range filtered {
+				tally("rfi", filtered[i].Severity)
+			}
+		}
+	}
+
+	// LFI
+	if len(result.LFI) > 0 {
+		if !f.includeCategory("lfi") {
+			result.LFI = nil
+		} else {
+			filtered := result.LFI[:0]
+			for i := range result.LFI {
+				v := &result.LFI[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.LFI = filtered
+			for i := range filtered {
+				tally("lfi", filtered[i].Severity)
+			}
+		}
+	}
+
+	// RCE
+	if len(result.RCE) > 0 {
+		if !f.includeCategory("rce") {
+			result.RCE = nil
+		} else {
+			filtered := result.RCE[:0]
+			for i := range result.RCE {
+				v := &result.RCE[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.RCE = filtered
+			for i := range filtered {
+				tally("rce", filtered[i].Severity)
+			}
+		}
+	}
+
+	// IDOR (no Evidence field)
+	if len(result.IDOR) > 0 {
+		if !f.includeCategory("idor") {
+			result.IDOR = nil
+		} else {
+			filtered := result.IDOR[:0]
+			for i := range result.IDOR {
+				v := &result.IDOR[i]
+				if f.includeSeverity(v.Severity) {
+					filtered = append(filtered, *v)
+				}
+			}
+			result.IDOR = filtered
+			for i := range filtered {
+				tally("idor", filtered[i].Severity)
+			}
+		}
+	}
+
+	// MassAssignment
+	if len(result.MassAssign) > 0 {
+		if !f.includeCategory("massassignment") {
+			result.MassAssign = nil
+		} else {
+			filtered := result.MassAssign[:0]
+			for i := range result.MassAssign {
+				v := &result.MassAssign[i]
+				if f.includeSeverity(v.Severity) {
+					if f.stripEvidence {
+						v.Evidence = ""
+					}
+					filtered = append(filtered, *v)
+				}
+			}
+			result.MassAssign = filtered
+			for i := range filtered {
+				tally("massassignment", filtered[i].Severity)
+			}
+		}
+	}
+
+	// ── Single-result scanners ──
+
+	// CSRF
+	if result.CSRF != nil {
+		if !f.includeCategory("csrf") {
+			result.CSRF = nil
+		} else if result.CSRF.Vulnerable && f.includeSeverity(result.CSRF.Severity) {
+			if f.stripEvidence {
+				result.CSRF.Evidence = ""
+			}
+			tally("csrf", result.CSRF.Severity)
+		}
+	}
+
+	// Clickjack
+	if result.Clickjack != nil {
+		if !f.includeCategory("clickjack") {
+			result.Clickjack = nil
+		} else if result.Clickjack.Vulnerable && f.includeSeverity(result.Clickjack.Severity) {
+			if f.stripEvidence {
+				result.Clickjack.Evidence = ""
+			}
+			tally("clickjack", result.Clickjack.Severity)
+		}
+	}
+
 	// ── Non-vulnerability scanners (category-only filtering) ──
 	if !f.includeCategory("wafdetect") {
 		result.WAFDetect = nil

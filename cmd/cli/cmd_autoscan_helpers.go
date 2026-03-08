@@ -30,33 +30,21 @@ func handleAdaptiveRate(statusCode int, outcome string, limiter *ratelimit.Limit
 // It inspects path segments for REST-like keywords (create, update, delete)
 // and falls back to examining the source string for explicit method hints.
 func inferHTTPMethod(path, source string) string {
-	pathLower := strings.ToLower(path)
+	// Split path into segments and match whole segments only
+	// to avoid false positives (e.g., /newsletter matching "new")
+	segments := strings.FieldsFunc(strings.ToLower(path), func(r rune) bool {
+		return r == '/' || r == '-' || r == '_'
+	})
 
-	// POST indicators
-	if strings.Contains(pathLower, "create") ||
-		strings.Contains(pathLower, "add") ||
-		strings.Contains(pathLower, "new") ||
-		strings.Contains(pathLower, "upload") ||
-		strings.Contains(pathLower, "submit") ||
-		strings.Contains(pathLower, "login") ||
-		strings.Contains(pathLower, "register") ||
-		strings.Contains(pathLower, "signup") {
-		return "POST"
-	}
-
-	// PUT/PATCH indicators
-	if strings.Contains(pathLower, "update") ||
-		strings.Contains(pathLower, "edit") ||
-		strings.Contains(pathLower, "modify") ||
-		strings.Contains(pathLower, "save") {
-		return "PUT"
-	}
-
-	// DELETE indicators
-	if strings.Contains(pathLower, "delete") ||
-		strings.Contains(pathLower, "remove") ||
-		strings.Contains(pathLower, "destroy") {
-		return "DELETE"
+	for _, seg := range segments {
+		switch seg {
+		case "create", "add", "new", "upload", "submit", "login", "register", "signup":
+			return "POST"
+		case "update", "edit", "modify", "save":
+			return "PUT"
+		case "delete", "remove", "destroy":
+			return "DELETE"
+		}
 	}
 
 	// Check source for whole-word HTTP method names to avoid false positives
@@ -136,6 +124,9 @@ func mergeExecutionResults(dst *output.ExecutionResults, src output.ExecutionRes
 	dst.BypassPayloads = append(dst.BypassPayloads, src.BypassPayloads...)
 	dst.BypassDetails = append(dst.BypassDetails, src.BypassDetails...)
 	dst.TopErrors = append(dst.TopErrors, src.TopErrors...)
+	if len(dst.TopErrors) > 100 {
+		dst.TopErrors = dst.TopErrors[:100]
+	}
 	dst.Latencies = append(dst.Latencies, src.Latencies...)
 
 	mergeIntMap := func(dstMap *map[int]int, srcMap map[int]int) {

@@ -231,6 +231,17 @@ func parseDiscoveryTypes(types string) []cloud.ResourceType {
 			result = append(result, cloud.TypeAPI)
 		case "database", "db", "rds":
 			result = append(result, cloud.TypeDatabase)
+		default:
+			ui.PrintWarning(fmt.Sprintf("Unknown discovery type %q — valid: storage,cdn,functions,api,database", strings.TrimSpace(t)))
+		}
+	}
+	if len(result) == 0 {
+		return []cloud.ResourceType{
+			cloud.TypeStorage,
+			cloud.TypeCDN,
+			cloud.TypeFunctions,
+			cloud.TypeAPI,
+			cloud.TypeDatabase,
 		}
 	}
 	return result

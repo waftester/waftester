@@ -314,10 +314,10 @@ func runRace() {
 
 	// Validate attack type
 	switch *attackType {
-	case "double_submit", "token_reuse", "limit_bypass", "toctou":
+	case "double_submit", "token_reuse", "limit_bypass":
 		// valid
 	default:
-		exitWithError("--attack must be one of: double_submit, token_reuse, limit_bypass, toctou; got %q", *attackType)
+		exitWithError("--attack must be one of: double_submit, token_reuse, limit_bypass; got %q", *attackType)
 	}
 
 	if *targetURL == "" {
@@ -613,6 +613,9 @@ func runWorkflow() {
 		// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
 		if workflowDispCtx != nil {
 			_ = workflowDispCtx.EmitError(workflowCtx, "workflow", fmt.Sprintf("Workflow '%s' failed: %v", *workflowFile, err), true)
+		}
+		if result == nil {
+			os.Exit(1)
 		}
 	}
 

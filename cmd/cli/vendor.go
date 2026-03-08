@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
-	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
@@ -361,7 +361,7 @@ func runProtocolDetect() {
 	}
 	fmt.Fprintln(os.Stderr)
 
-	// Note: Full implementation would use pkg/enterprise
+	ui.PrintWarning("Protocol detection is a placeholder — full implementation pending")
 	ui.PrintInfo("Protocol detection complete")
 
 	// Emit summary to hooks
@@ -379,6 +379,7 @@ func runProtocolDetect() {
 		}
 		if err := iohelper.WriteAtomicJSON(*output, protoResult, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
+			os.Exit(1)
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}

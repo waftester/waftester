@@ -225,7 +225,7 @@ func runAnalyze() {
 
 	// Output results
 	if *jsonOutput || *outputFile != "" {
-		outputData := result
+		outputData := *result
 		if !*extractURLs {
 			outputData.URLs = nil
 		}
@@ -239,7 +239,7 @@ func runAnalyze() {
 			outputData.DOMSinks = nil
 		}
 
-		jsonData, err := json.MarshalIndent(outputData, "", "  ")
+		jsonData, err := json.MarshalIndent(&outputData, "", "  ")
 		if err != nil {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)

@@ -108,14 +108,16 @@ func newSmartModeCache(r *SmartModeResult) smartModeCache {
 }
 
 func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
-	return &SmartModeResult{
+	r := &SmartModeResult{
 		WAFDetected: c.WAFDetected,
 		VendorName:  c.VendorName,
 		Confidence:  c.Confidence,
 		BypassHints: c.BypassHints,
 		RateLimit:   c.RateLimit,
 		Concurrency: c.Concurrency,
-		Strategy: &strategy.Strategy{
+	}
+	if c.WAFDetected {
+		r.Strategy = &strategy.Strategy{
 			Vendor:                   vendors.WAFVendor(c.StratVendor),
 			VendorName:               c.StratVendorName,
 			Confidence:               c.StratConfidence,
@@ -131,8 +133,9 @@ func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
 			BlockStatusCodes:         c.StratBlockStatusCodes,
 			BlockPatterns:            c.StratBlockPatterns,
 			RecommendedMutationDepth: c.StratRecommendedDepth,
-		},
+		}
 	}
+	return r
 }
 
 // runAutoScan is the SUPERPOWER command - full automated scan in a single command
@@ -503,6 +506,17 @@ func runAutoScan() {
 	autoProgress.Start()
 	defer autoProgress.Stop()
 
+	// fatalExit stops progress and dispatcher before os.Exit.
+	// os.Exit does not run defers, so cleanup must be explicit.
+	fatalExit := func() {
+		if autoDispCtx != nil {
+			autoDispCtx.Close()
+		}
+		autoProgress.Stop()
+		cancel()
+		os.Exit(1)
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
 	// Runs BEFORE spec pipeline so both paths benefit from WAF-tuned settings.
@@ -707,19 +721,8 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-				_ = autoDispCtx.Close()
 			}
-			os.Exit(1) // intentional: CLI early exit on fatal error
-		}
-
-		if err := discResult.SaveResult(discoveryFile); err != nil {
-			errMsg := fmt.Sprintf("Error saving discovery: %v", err)
-			ui.PrintError(errMsg)
-			if autoDispCtx != nil {
-				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-				_ = autoDispCtx.Close()
-			}
-			os.Exit(1) // intentional: CLI early exit on fatal error
+			fatalExit()
 		}
 
 		ui.PrintSuccess(fmt.Sprintf("%s Discovered %d endpoints", ui.Icon("✓", "+"), len(discResult.Endpoints)))
@@ -2033,9 +2036,8 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-				_ = autoDispCtx.Close()
 			}
-			os.Exit(1)
+			fatalExit()
 		}
 
 		// Filter payloads based on test plan categories
@@ -2059,10 +2061,7 @@ func runAutoScan() {
 				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, cfg.Common.Verbose)
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
-					if autoDispCtx != nil {
-						_ = autoDispCtx.Close()
-					}
-					os.Exit(1)
+					fatalExit()
 				}
 			}
 		}
@@ -2130,6 +2129,7 @@ func runAutoScan() {
 		// to order payload categories by generic bypass likelihood (e.g., sqli
 		// before xss). This provides a good initial ordering even on the first
 		// scan when the brain predictor has no training data.
+		catPriority := make(map[string]int)
 		if smartResult != nil && smartResult.Strategy != nil && len(allPayloads) > 1 {
 			// Collect unique categories
 			catSet := make(map[string]bool)
@@ -2140,34 +2140,36 @@ func runAutoScan() {
 			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
 
 			// Build category→priority index
-			catPriority := make(map[string]int, len(prioritized))
 			for i, c := range prioritized {
 				catPriority[c] = i
 			}
-
-			sort.SliceStable(allPayloads, func(i, j int) bool {
-				pi := catPriority[strings.ToLower(allPayloads[i].Category)]
-				pj := catPriority[strings.ToLower(allPayloads[j].Category)]
-				return pi < pj
-			})
 		}
 
 		// ── STRATEGY-BASED ENCODING BOOST ───────────────────────────────────
 		// Boost payloads whose EncodingUsed matches a recommended encoder.
 		// Prefer Pipeline (mode-filtered) over raw Strategy encoders so that
 		// quick/stealth modes test fewer encodings while full/bypass test all.
+		// Applied within each category group to preserve category priority.
 		var boostEncoders []string
 		if smartResult != nil && smartResult.Pipeline != nil && len(smartResult.Pipeline.Encoders) > 0 {
 			boostEncoders = smartResult.Pipeline.Encoders
 		} else if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.Encoders) > 0 {
 			boostEncoders = smartResult.Strategy.Encoders
 		}
-		if len(boostEncoders) > 0 && len(allPayloads) > 1 {
+
+		// Combined sort: category priority first, encoding boost second.
+		// A single sort avoids the encoding boost overriding category order.
+		if len(catPriority) > 0 || len(boostEncoders) > 0 {
 			recEnc := make(map[string]bool, len(boostEncoders))
 			for _, e := range boostEncoders {
 				recEnc[strings.ToLower(e)] = true
 			}
 			sort.SliceStable(allPayloads, func(i, j int) bool {
+				pi := catPriority[strings.ToLower(allPayloads[i].Category)]
+				pj := catPriority[strings.ToLower(allPayloads[j].Category)]
+				if pi != pj {
+					return pi < pj
+				}
 				iRec := recEnc[strings.ToLower(allPayloads[i].EncodingUsed)]
 				jRec := recEnc[strings.ToLower(allPayloads[j].EncodingUsed)]
 				return iRec && !jRec
@@ -2475,9 +2477,8 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-				_ = autoDispCtx.Close()
 			}
-			os.Exit(1) // intentional: CLI early exit on fatal error
+			fatalExit()
 		}
 
 		// Print section header
@@ -4024,12 +4025,6 @@ func runAutoScan() {
 	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && attackTests == 0
 	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && attackTests > 0) || allErrored
 	if ciExit {
-		// Explicitly flush deferred resources — os.Exit does not run defers.
-		if autoDispCtx != nil {
-			autoDispCtx.Close()
-		}
-		autoProgress.Stop()
-		cancel()
-		os.Exit(1)
+		fatalExit()
 	}
 }

@@ -88,7 +88,9 @@ func finalizeScanOutput(ctx context.Context, result *ScanResult, cfg scanOutputC
 	if cfg.FormatType != "" && cfg.FormatType != "console" {
 		switch cfg.FormatType {
 		case "json":
-			writeScanJSON(ctx, result, cfg)
+			if err := writeScanJSON(ctx, result, cfg); err != nil {
+				return 1
+			}
 			return 0
 		case "jsonl":
 			printScanJSONL(os.Stdout, cfg.Target, result)
@@ -115,12 +117,16 @@ func finalizeScanOutput(ctx context.Context, result *ScanResult, cfg scanOutputC
 
 	// Output JSON (skip final blob in stream+json mode)
 	if (cfg.JSONOutput || cfg.OutputFile != "") && !cfg.StreamJSON {
-		writeScanJSON(ctx, result, cfg)
+		if err := writeScanJSON(ctx, result, cfg); err != nil {
+			return 1
+		}
 	}
 
 	// Write to file in stream mode
 	if cfg.OutputFile != "" && cfg.StreamJSON {
-		writeScanJSON(ctx, result, cfg)
+		if err := writeScanJSON(ctx, result, cfg); err != nil {
+			return 1
+		}
 	}
 
 	if result.TotalVulns > 0 {
@@ -163,7 +169,7 @@ func printScanCompletionBanner(result *ScanResult, totalScans int32, scanErrors 
 }
 
 // writeScanJSON marshals results to JSON and writes to file and/or stdout.
-func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig) {
+func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig) error {
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		errMsg := fmt.Sprintf("JSON encoding error: %v", err)
@@ -172,7 +178,7 @@ func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig
 			_ = cfg.DispCtx.EmitError(ctx, "scan", errMsg, true)
 			_ = cfg.DispCtx.Close()
 		}
-		os.Exit(1)
+		return fmt.Errorf("JSON encoding: %w", err)
 	}
 
 	if cfg.OutputFile != "" {
@@ -183,7 +189,7 @@ func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig
 				_ = cfg.DispCtx.EmitError(ctx, "scan", errMsg, true)
 				_ = cfg.DispCtx.Close()
 			}
-			os.Exit(1)
+			return fmt.Errorf("write output: %w", err)
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results saved to %s", cfg.OutputFile))
 	}
@@ -191,4 +197,5 @@ func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig
 	if cfg.JSONOutput && !cfg.StreamJSON {
 		fmt.Println(string(jsonData))
 	}
+	return nil
 }

@@ -393,7 +393,7 @@ func buildSARIFResults(target string, results output.ExecutionResults) []map[str
 				{
 					"physicalLocation": map[string]interface{}{
 						"artifactLocation": map[string]string{
-							"uri": target + bypass.Endpoint,
+							"uri": strings.TrimRight(target, "/") + "/" + strings.TrimLeft(bypass.Endpoint, "/"),
 						},
 					},
 					"logicalLocations": []map[string]interface{}{

@@ -595,6 +595,13 @@ func runScan() {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, *cfg.Concurrency)
 
+	// tlsDone is closed when the TLS probe scanner completes, allowing
+	// dependent scanners (like VHost) to wait for TLS SANs.
+	tlsDone := make(chan struct{})
+	if !shouldScan("tlsprobe") {
+		close(tlsDone)
+	}
+
 	// Clamp rate limit to minimum of 1 (0 or negative would block forever)
 	if *cfg.RateLimit < 1 {
 		*cfg.RateLimit = 1
@@ -856,14 +863,16 @@ func runScan() {
 					Strategy:    retry.Exponential,
 					Jitter:      true,
 				}
-				_ = retry.Do(ctx, retryCfg, func() error {
+				if err := retry.Do(ctx, retryCfg, func() error {
 					before := atomic.LoadInt32(&scanErrors)
 					fn()
 					if atomic.LoadInt32(&scanErrors) > before {
 						return fmt.Errorf("%s scan failed", name)
 					}
 					return nil
-				})
+				}); err != nil {
+					ui.PrintWarning(fmt.Sprintf("%s: retries exhausted: %v", name, err))
+				}
 			} else {
 				fn()
 			}
@@ -1650,14 +1659,14 @@ func runScan() {
 			scanResult, err := tester.FullScan(ctx)
 			if err == nil && scanResult != nil && len(scanResult.Vulnerabilities) > 0 {
 				mu.Lock()
-				result.GraphQL = scanResult
-				vulnCount = len(scanResult.Vulnerabilities)
+				if result.GraphQL == nil {
+					result.GraphQL = scanResult
+				} else {
+					result.GraphQL.Vulnerabilities = append(result.GraphQL.Vulnerabilities, scanResult.Vulnerabilities...)
+				}
+				vulnCount += len(scanResult.Vulnerabilities)
 				foundEndpoint = endpoint
-				result.ByCategory["graphql"] = vulnCount
-				result.TotalVulns += vulnCount
-				// Vulns metric updated in real-time via OnVulnerabilityFound callback
 				for _, v := range scanResult.Vulnerabilities {
-					result.BySeverity[string(v.Severity)]++
 					emitEvent("vulnerability", map[string]interface{}{
 						"category": "graphql",
 						"severity": v.Severity,
@@ -1665,10 +1674,17 @@ func runScan() {
 					})
 				}
 				mu.Unlock()
-				return
 			}
 		}
-		if cfg.Common.Verbose {
+		if vulnCount > 0 {
+			mu.Lock()
+			result.ByCategory["graphql"] = vulnCount
+			result.TotalVulns += vulnCount
+			for _, v := range result.GraphQL.Vulnerabilities {
+				result.BySeverity[string(v.Severity)]++
+			}
+			mu.Unlock()
+		} else if cfg.Common.Verbose {
 			ui.PrintInfo("No GraphQL endpoint found or no vulnerabilities detected")
 		}
 	})
@@ -2395,6 +2411,7 @@ func runScan() {
 
 	// TLS Security Probe
 	runScanner("tlsprobe", func() {
+		defer close(tlsDone)
 		var vulnFound bool
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "tlsprobe", "vuln_found": vulnFound})
@@ -2775,6 +2792,13 @@ func runScan() {
 		vhostProber := probes.NewVHostProber()
 		vhostProber.Timeout = timeoutDur
 
+		// Wait for TLS probe so SANs are available for wordlist generation.
+		select {
+		case <-tlsDone:
+		case <-ctx.Done():
+			return
+		}
+
 		// Build wordlist dynamically from TLS SANs and base prefixes
 		gen := probes.NewVHostWordlistGenerator(parsedURL.Hostname())
 		mu.Lock()
@@ -2910,11 +2934,7 @@ func runScan() {
 
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if dispCtx != nil {
-		blocked := int(totalScans) - result.TotalVulns
-		if blocked < 0 {
-			blocked = 0
-		}
-		_ = dispCtx.EmitSummary(ctx, int(totalScans), blocked, result.TotalVulns, result.Duration)
+		_ = dispCtx.EmitSummary(ctx, int(totalScans), 0, result.TotalVulns, result.Duration)
 	}
 
 	// Emit scan_end event for streaming JSON
@@ -2931,7 +2951,7 @@ func runScan() {
 	progress.Stop()
 
 	// Finalize: output, exports, and exit code
-	finalizeScanOutput(ctx, result, scanOutputConfig{
+	exitCode := finalizeScanOutput(ctx, result, scanOutputConfig{
 		Target:       target,
 		StreamJSON:   streamJSON,
 		TotalScans:   totalScans,
@@ -2948,4 +2968,7 @@ func runScan() {
 		OutFlags:     &cfg.Out,
 		DispCtx:      dispCtx,
 	})
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
 }

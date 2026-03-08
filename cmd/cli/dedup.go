@@ -13,20 +13,29 @@ import (
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
+	"github.com/waftester/waftester/pkg/idor"
 	"github.com/waftester/waftester/pkg/jwt"
+	"github.com/waftester/waftester/pkg/ldap"
+	"github.com/waftester/waftester/pkg/lfi"
+	"github.com/waftester/waftester/pkg/massassignment"
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/oauth"
 	"github.com/waftester/waftester/pkg/prototype"
 	"github.com/waftester/waftester/pkg/race"
+	"github.com/waftester/waftester/pkg/rce"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/smuggling"
 	"github.com/waftester/waftester/pkg/sqli"
+	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/subtakeover"
 	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/upload"
 	"github.com/waftester/waftester/pkg/websocket"
+	"github.com/waftester/waftester/pkg/xmlinjection"
+	"github.com/waftester/waftester/pkg/xpath"
 	"github.com/waftester/waftester/pkg/xss"
 	"github.com/waftester/waftester/pkg/xxe"
 )
@@ -218,6 +227,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.GraphQL != nil && len(r.GraphQL.Vulnerabilities) > 0 {
 		r.GraphQL.Vulnerabilities = DeduplicateFindings(r.GraphQL.Vulnerabilities,
 			func(v *graphql.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s", v.Type, v.Query)
 			},
 			func(v **graphql.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -259,6 +271,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.Race != nil && len(r.Race.Vulnerabilities) > 0 {
 		r.Race.Vulnerabilities = DeduplicateFindings(r.Race.Vulnerabilities,
 			func(v *race.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s", v.URL, v.Type)
 			},
 			func(v **race.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -274,6 +289,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.CMDI != nil && len(r.CMDI.Vulnerabilities) > 0 {
 		r.CMDI.Vulnerabilities = DeduplicateFindings(r.CMDI.Vulnerabilities,
 			func(v *cmdi.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s|%s|%s", v.URL, v.Parameter, v.Type, v.Platform)
 			},
 			func(v **cmdi.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -287,6 +305,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.CORS != nil && len(r.CORS.Vulnerabilities) > 0 {
 		r.CORS.Vulnerabilities = DeduplicateFindings(r.CORS.Vulnerabilities,
 			func(v *cors.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s", v.URL, v.Type)
 			},
 			func(v **cors.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -300,6 +321,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.Redirect != nil && len(r.Redirect.Vulnerabilities) > 0 {
 		r.Redirect.Vulnerabilities = DeduplicateFindings(r.Redirect.Vulnerabilities,
 			func(v *redirect.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s|%s", v.URL, v.Parameter, v.Type)
 			},
 			func(v **redirect.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -382,6 +406,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if len(r.SSTI) > 0 {
 		r.SSTI = DeduplicateFindings(r.SSTI,
 			func(v *ssti.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s|%s", v.URL, v.Parameter, v.Engine)
 			},
 			func(v **ssti.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -395,6 +422,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if len(r.XXE) > 0 {
 		r.XXE = DeduplicateFindings(r.XXE,
 			func(v *xxe.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s", v.URL, v.Type)
 			},
 			func(v **xxe.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -408,6 +438,9 @@ func deduplicateAllFindings(r *ScanResult) {
 	if len(r.JWT) > 0 {
 		r.JWT = DeduplicateFindings(r.JWT,
 			func(v *jwt.Vulnerability) string {
+				if v == nil {
+					return ""
+				}
 				return fmt.Sprintf("%s|%s", v.Type, v.Original)
 			},
 			func(v **jwt.Vulnerability, n int) { (*v).ConfirmedBy = n },
@@ -416,6 +449,137 @@ func deduplicateAllFindings(r *ScanResult) {
 		for _, v := range r.JWT {
 			r.BySeverity[v.Severity]++ // Severity is string
 		}
+	}
+
+	// --- Injection scanners ([]Result, no ConfirmedBy) ---
+
+	if len(r.LDAP) > 0 {
+		r.LDAP = DeduplicateFindings(r.LDAP,
+			func(v ldap.Result) string {
+				return fmt.Sprintf("%s|%s", v.URL, v.Parameter)
+			},
+			func(_ *ldap.Result, _ int) {},
+		)
+		addCounts(r, "ldap", len(r.LDAP))
+		for _, v := range r.LDAP {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.SSI) > 0 {
+		r.SSI = DeduplicateFindings(r.SSI,
+			func(v ssi.Result) string {
+				return fmt.Sprintf("%s|%s", v.URL, v.Parameter)
+			},
+			func(_ *ssi.Result, _ int) {},
+		)
+		addCounts(r, "ssi", len(r.SSI))
+		for _, v := range r.SSI {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.XPath) > 0 {
+		r.XPath = DeduplicateFindings(r.XPath,
+			func(v xpath.Result) string {
+				return fmt.Sprintf("%s|%s", v.URL, v.Parameter)
+			},
+			func(_ *xpath.Result, _ int) {},
+		)
+		addCounts(r, "xpath", len(r.XPath))
+		for _, v := range r.XPath {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.XMLInjection) > 0 {
+		r.XMLInjection = DeduplicateFindings(r.XMLInjection,
+			func(v xmlinjection.Result) string {
+				return fmt.Sprintf("%s|%s|%s", v.URL, v.Parameter, v.PayloadType)
+			},
+			func(_ *xmlinjection.Result, _ int) {},
+		)
+		addCounts(r, "xmlinjection", len(r.XMLInjection))
+		for _, v := range r.XMLInjection {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.RFI) > 0 {
+		r.RFI = DeduplicateFindings(r.RFI,
+			func(v rfi.Result) string {
+				return fmt.Sprintf("%s|%s", v.URL, v.Parameter)
+			},
+			func(_ *rfi.Result, _ int) {},
+		)
+		addCounts(r, "rfi", len(r.RFI))
+		for _, v := range r.RFI {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.LFI) > 0 {
+		r.LFI = DeduplicateFindings(r.LFI,
+			func(v lfi.Result) string {
+				return fmt.Sprintf("%s|%s", v.URL, v.Parameter)
+			},
+			func(_ *lfi.Result, _ int) {},
+		)
+		addCounts(r, "lfi", len(r.LFI))
+		for _, v := range r.LFI {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.RCE) > 0 {
+		r.RCE = DeduplicateFindings(r.RCE,
+			func(v rce.Result) string {
+				return fmt.Sprintf("%s|%s|%s", v.URL, v.Parameter, v.PayloadType)
+			},
+			func(_ *rce.Result, _ int) {},
+		)
+		addCounts(r, "rce", len(r.RCE))
+		for _, v := range r.RCE {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.IDOR) > 0 {
+		r.IDOR = DeduplicateFindings(r.IDOR,
+			func(v idor.Result) string {
+				return fmt.Sprintf("%s|%s|%s", v.URL, v.Method, v.Vulnerability)
+			},
+			func(_ *idor.Result, _ int) {},
+		)
+		addCounts(r, "idor", len(r.IDOR))
+		for _, v := range r.IDOR {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	if len(r.MassAssign) > 0 {
+		r.MassAssign = DeduplicateFindings(r.MassAssign,
+			func(v massassignment.Result) string {
+				return fmt.Sprintf("%s|%s|%s", v.URL, v.Method, v.Parameter)
+			},
+			func(_ *massassignment.Result, _ int) {},
+		)
+		addCounts(r, "massassignment", len(r.MassAssign))
+		for _, v := range r.MassAssign {
+			r.BySeverity[string(v.Severity)]++
+		}
+	}
+
+	// --- Single-result scanners (tally only, no dedup needed) ---
+
+	if r.CSRF != nil && r.CSRF.Vulnerable {
+		addCounts(r, "csrf", 1)
+		r.BySeverity[string(r.CSRF.Severity)]++
+	}
+
+	if r.Clickjack != nil && r.Clickjack.Vulnerable {
+		addCounts(r, "clickjack", 1)
+		r.BySeverity[string(r.Clickjack.Severity)]++
 	}
 
 	// --- Subtakeover ([]ScanResult with embedded []Vulnerability) ---

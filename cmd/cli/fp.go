@@ -378,12 +378,3 @@ func runLocalFPTest(paranoiaLevel int, verbose bool) {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, fp.FormatLocalFPReport(stats))
 }
-
-// Helper functions for progress display
-func repeatChar(char string, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += char
-	}
-	return result
-}

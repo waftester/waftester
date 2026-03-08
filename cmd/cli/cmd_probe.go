@@ -1819,6 +1819,21 @@ func runProbe() {
 		defer probeProgress.Stop()
 	}
 
+	// Load custom fingerprints for tech detection (must happen before scanning)
+	if *cfg.CustomFingerprintFile != "" {
+		content, err := os.ReadFile(*cfg.CustomFingerprintFile)
+		if err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not read custom fingerprint file: %v", err))
+		} else {
+			var fingerprints []probes.CustomFingerprint
+			if err := json.Unmarshal(content, &fingerprints); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not parse custom fingerprint file: %v", err))
+			} else {
+				fmt.Fprintf(os.Stderr, "[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *cfg.CustomFingerprintFile)
+			}
+		}
+	}
+
 	// Run probes in parallel with streaming output using callback
 	probeRunner.RunWithCallback(ctx, targets, probeTask, func(result runner.Result[*ProbeResults]) {
 		if result.Error != nil {
@@ -1832,6 +1847,7 @@ func runProbe() {
 
 		// Skip nil results (filtered targets)
 		if result.Data == nil {
+			probeProgress.Increment()
 			return
 		}
 
@@ -1912,24 +1928,16 @@ func runProbe() {
 			if results.ResponseTime != "" {
 				parts = append(parts, fmt.Sprintf("[%s]", results.ResponseTime))
 			}
-			// Show title when -title flag or default tech detection
+			// Show title when -title flag is set
 			if *cfg.ShowTitle && results.Tech != nil && results.Tech.Title != "" {
 				title := results.Tech.Title
 				if len(title) > 50 {
 					title = title[:47] + "..."
 				}
 				parts = append(parts, fmt.Sprintf("[%s]", title))
-			} else if results.Tech != nil && results.Tech.Title != "" && !*cfg.ShowTitle {
-				title := results.Tech.Title
-				if len(title) > 50 {
-					title = title[:47] + "..."
-				}
-				parts = append(parts, fmt.Sprintf("[%s]", title))
 			}
-			// Show IP when -ip flag or default DNS
+			// Show IP when -ip flag is set
 			if *cfg.ShowIP && results.DNS != nil && len(results.DNS.IPv4) > 0 {
-				parts = append(parts, fmt.Sprintf("[%s]", results.DNS.IPv4[0]))
-			} else if results.DNS != nil && len(results.DNS.IPv4) > 0 && !*cfg.ShowIP {
 				parts = append(parts, fmt.Sprintf("[%s]", results.DNS.IPv4[0]))
 			}
 			// Show ASN when -asn flag
@@ -1946,15 +1954,6 @@ func runProbe() {
 			}
 			// Show technologies when -td flag or default
 			if *cfg.ShowTech && results.Tech != nil && len(results.Tech.Technologies) > 0 {
-				techs := make([]string, 0)
-				for i, t := range results.Tech.Technologies {
-					if i >= 3 {
-						break
-					}
-					techs = append(techs, t.Name)
-				}
-				parts = append(parts, fmt.Sprintf("[%s]", strings.Join(techs, ",")))
-			} else if results.Tech != nil && len(results.Tech.Technologies) > 0 && !*cfg.ShowTech {
 				techs := make([]string, 0)
 				for i, t := range results.Tech.Technologies {
 					if i >= 3 {
@@ -2047,14 +2046,6 @@ func runProbe() {
 					parts = append(parts, "[DOWN]")
 				}
 			}
-			// Show line count
-			if *cfg.ShowLineCount && results.LineCount > 0 {
-				parts = append(parts, fmt.Sprintf("[LC:%d]", results.LineCount))
-			}
-			// Show word count
-			if *cfg.ShowWordCount && results.WordCount > 0 {
-				parts = append(parts, fmt.Sprintf("[WC:%d]", results.WordCount))
-			}
 			fmt.Println(strings.Join(parts, " "))
 		} else if *cfg.CSVOutput {
 			// CSV output format
@@ -2129,49 +2120,6 @@ func runProbe() {
 				os.Exit(1)
 			}
 
-			if *cfg.OutputFile != "" {
-				if err := iohelper.WriteAtomic(*cfg.OutputFile, jsonData, 0644); err != nil {
-					errMsg := fmt.Sprintf("Error writing output: %v", err)
-					ui.PrintError(errMsg)
-					if probeDispCtx != nil {
-						_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
-						_ = probeDispCtx.Close()
-					}
-					os.Exit(1)
-				}
-				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *cfg.OutputFile))
-
-				// Output all formats if requested
-				if *cfg.OutputAll {
-					// CSV file with encoding support
-					csvFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".csv"
-					csvLine := fmt.Sprintf("%s,%d,%d,%s,%s,%d,%d,%t\n",
-						results.Target, results.StatusCode, results.ContentLength,
-						strings.ReplaceAll(results.ContentType, ",", ";"),
-						results.Server, results.WordCount, results.LineCount, results.Alive)
-					csvContent := "target,status_code,content_length,content_type,server,word_count,line_count,alive\n" + csvLine
-					// Add BOM for utf-8-sig encoding
-					var csvBytes []byte
-					if csvEnc == "utf-8-sig" {
-						csvBytes = append([]byte{0xEF, 0xBB, 0xBF}, []byte(csvContent)...)
-					} else {
-						csvBytes = []byte(csvContent)
-					}
-					if err := iohelper.WriteAtomic(csvFile, csvBytes, 0644); err == nil {
-						ui.PrintSuccess(fmt.Sprintf("CSV saved to %s", csvFile))
-					}
-
-					// TXT file (oneliner format)
-					txtFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".txt"
-					txtLine := fmt.Sprintf("%s [%d] [%s] [%s] [%s]\n",
-						results.Target, results.StatusCode, results.ResponseTime,
-						results.ContentType, results.Server)
-					if err := iohelper.WriteAtomic(txtFile, []byte(txtLine), 0644); err == nil {
-						ui.PrintSuccess(fmt.Sprintf("TXT saved to %s", txtFile))
-					}
-				}
-			}
-
 			if *cfg.JSONOutput {
 				fmt.Println(string(jsonData))
 			}
@@ -2195,6 +2143,68 @@ func runProbe() {
 	}) // end of RunWithCallback
 
 	// LiveProgress is automatically stopped by defer
+
+	// Write accumulated results to output file (after all targets complete)
+	if *cfg.OutputFile != "" && len(allProbeResults) > 0 {
+		var fileData interface{}
+		if len(allProbeResults) == 1 {
+			fileData = allProbeResults[0]
+		} else {
+			fileData = allProbeResults
+		}
+		jsonData, err := json.MarshalIndent(fileData, "", "  ")
+		if err != nil {
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			if probeDispCtx != nil {
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			}
+			os.Exit(1)
+		}
+		if err := iohelper.WriteAtomic(*cfg.OutputFile, jsonData, 0644); err != nil {
+			errMsg := fmt.Sprintf("Error writing output: %v", err)
+			ui.PrintError(errMsg)
+			if probeDispCtx != nil {
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			}
+			os.Exit(1)
+		}
+		ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *cfg.OutputFile))
+
+		// Output all formats if requested
+		if *cfg.OutputAll {
+			csvFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".csv"
+			var csvBuf strings.Builder
+			csvBuf.WriteString("target,status_code,content_length,content_type,server,word_count,line_count,alive\n")
+			for _, r := range allProbeResults {
+				fmt.Fprintf(&csvBuf, "%s,%d,%d,%s,%s,%d,%d,%t\n",
+					r.Target, r.StatusCode, r.ContentLength,
+					strings.ReplaceAll(r.ContentType, ",", ";"),
+					r.Server, r.WordCount, r.LineCount, r.Alive)
+			}
+			csvContent := csvBuf.String()
+			var csvBytes []byte
+			if csvEnc == "utf-8-sig" {
+				csvBytes = append([]byte{0xEF, 0xBB, 0xBF}, []byte(csvContent)...)
+			} else {
+				csvBytes = []byte(csvContent)
+			}
+			if err := iohelper.WriteAtomic(csvFile, csvBytes, 0644); err == nil {
+				ui.PrintSuccess(fmt.Sprintf("CSV saved to %s", csvFile))
+			}
+
+			txtFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".txt"
+			var txtBuf strings.Builder
+			for _, r := range allProbeResults {
+				fmt.Fprintf(&txtBuf, "%s [%d] [%s] [%s] [%s]\n",
+					r.Target, r.StatusCode, r.ResponseTime,
+					r.ContentType, r.Server)
+			}
+			if err := iohelper.WriteAtomic(txtFile, []byte(txtBuf.String()), 0644); err == nil {
+				ui.PrintSuccess(fmt.Sprintf("TXT saved to %s", txtFile))
+			}
+		}
+	}
 
 	// Clean up checkpoint file on successful completion
 	if checkpointMgr != nil && checkpointMgr.GetProgress() >= 100 {
@@ -2289,23 +2299,6 @@ func runProbe() {
 			}
 			if closeErr := f.Close(); closeErr != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not close memory profile: %v", closeErr))
-			}
-		}
-	}
-
-	// Custom fingerprint file notification
-	if *cfg.CustomFingerprintFile != "" {
-		// Load custom fingerprints for tech detection
-		content, err := os.ReadFile(*cfg.CustomFingerprintFile)
-		if err != nil {
-			ui.PrintWarning(fmt.Sprintf("Could not read custom fingerprint file: %v", err))
-		} else {
-			// Parse as JSON array of fingerprints
-			var fingerprints []probes.CustomFingerprint
-			if err := json.Unmarshal(content, &fingerprints); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Could not parse custom fingerprint file: %v", err))
-			} else {
-				fmt.Fprintf(os.Stderr, "[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *cfg.CustomFingerprintFile)
 			}
 		}
 	}

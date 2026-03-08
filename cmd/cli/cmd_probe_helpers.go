@@ -72,15 +72,15 @@ func matchRange(value int, rangeSpec string) bool {
 		if strings.Contains(part, "-") {
 			bounds := strings.Split(part, "-")
 			if len(bounds) == 2 {
-				low, _ := strconv.Atoi(strings.TrimSpace(bounds[0]))
-				high, _ := strconv.Atoi(strings.TrimSpace(bounds[1]))
-				if value >= low && value <= high {
+				low, err1 := strconv.Atoi(strings.TrimSpace(bounds[0]))
+				high, err2 := strconv.Atoi(strings.TrimSpace(bounds[1]))
+				if err1 == nil && err2 == nil && value >= low && value <= high {
 					return true
 				}
 			}
 		} else {
-			match, _ := strconv.Atoi(part)
-			if value == match {
+			match, err := strconv.Atoi(part)
+			if err == nil && value == match {
 				return true
 			}
 		}
@@ -165,14 +165,16 @@ func parseProbePorts(spec string) []portSpec {
 				endPort, err2 := strconv.Atoi(rangeParts[1])
 				if err1 == nil && err2 == nil && startPort <= endPort {
 					for p := startPort; p <= endPort; p++ {
-						result = append(result, portSpec{scheme, p})
+						if p >= 1 && p <= 65535 {
+							result = append(result, portSpec{scheme, p})
+						}
 					}
 				}
 			}
 		} else {
 			// Single port
 			p, err := strconv.Atoi(portPart)
-			if err == nil {
+			if err == nil && p >= 1 && p <= 65535 {
 				result = append(result, portSpec{scheme, p})
 			}
 		}
@@ -195,7 +197,7 @@ func expandProbeTargetPorts(targets []string, portSpecs []portSpec) []string {
 			if ps.scheme != "" {
 				scheme = ps.scheme
 			}
-			newURL := fmt.Sprintf("%s://%s:%d%s", scheme, baseHost, ps.port, parsedURL.Path)
+			newURL := fmt.Sprintf("%s://%s:%d%s", scheme, baseHost, ps.port, parsedURL.RequestURI())
 			expanded = append(expanded, newURL)
 		}
 	}
