@@ -107,6 +107,7 @@ func runTests() {
 	}
 	if runDispCtx != nil {
 		defer runDispCtx.Close()
+		runDispCtx.RegisterDetectionCallbacks(ctx)
 		if !cfg.Silent {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}

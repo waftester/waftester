@@ -336,3 +336,16 @@ func TestAutoscanOnAnomalyBeforeExecutor(t *testing.T) {
 		t.Error("OnAnomaly must be registered before ExecuteWithProgress for main WAF testing")
 	}
 }
+
+// H6 (logical-order): cmd_tests.go must call RegisterDetectionCallbacks on dispatcher.
+func TestRunCommandRegistersDetectionCallbacks(t *testing.T) {
+	src, err := os.ReadFile("cmd_tests.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_tests.go: %v", err)
+	}
+	content := string(src)
+
+	if !strings.Contains(content, "RegisterDetectionCallbacks") {
+		t.Error("cmd_tests.go must call RegisterDetectionCallbacks on dispatcher")
+	}
+}
