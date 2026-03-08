@@ -915,3 +915,31 @@ func TestNoDirectOsExit1_InCommandFunctions(t *testing.T) {
 		}
 	}
 }
+
+// #30-32: Errors must not be conflated with WAF blocks.
+// When err != nil, fr.Blocked must not be set to true.
+func TestFuzzErrorNotConflatedWithBlock(t *testing.T) {
+	files := []string{
+		"cmd_grpc.go",
+		"cmd_soap.go",
+		"cmd_openapi.go",
+	}
+
+	for _, f := range files {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(src)
+		lines := strings.Split(content, "\n")
+		for i, line := range lines {
+			if strings.Contains(line, "err != nil") && i+2 < len(lines) {
+				for j := i + 1; j <= i+2 && j < len(lines); j++ {
+					if strings.Contains(lines[j], ".Blocked = true") {
+						t.Errorf("%s line %d: error conflated with block (err != nil sets Blocked = true)", f, j+1)
+					}
+				}
+			}
+		}
+	}
+}

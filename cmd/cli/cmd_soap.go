@@ -272,6 +272,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 		Blocked    bool   `json:"blocked"`
 		Fault      string `json:"fault,omitempty"`
 		Latency    string `json:"latency"`
+		Error      string `json:"error,omitempty"`
 	}
 
 	var results []fuzzResult
@@ -306,7 +307,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 		}
 
 		if err != nil {
-			fr.Blocked = true
+			fr.Error = err.Error()
 		} else if resp != nil {
 			fr.StatusCode = resp.StatusCode
 			fr.Blocked = resp.Blocked
@@ -319,7 +320,9 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 		results = append(results, fr)
 
 		if !jsonOutput {
-			if fr.Blocked {
+			if fr.Error != "" {
+				ui.PrintError(fmt.Sprintf("[ERROR] %s", fr.Error))
+			} else if fr.Blocked {
 				ui.PrintWarning(fmt.Sprintf("[BLOCKED] %s", truncatePayload(payload, 60)))
 			} else {
 				fmt.Fprintf(os.Stderr, "[PASSED] %s\n", truncatePayload(payload, 60))

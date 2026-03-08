@@ -353,7 +353,6 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 
 				if err != nil {
 					fr.Error = err.Error()
-					fr.Blocked = true
 				} else {
 					fr.StatusCode = result.StatusCode
 					fr.Blocked = result.Blocked
@@ -363,7 +362,10 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 				results = append(results, fr)
 
 				if !jsonOutput && verbose {
-					if fr.Blocked {
+					if fr.Error != "" {
+						ui.PrintError(fmt.Sprintf("[ERROR] %s %s (%s=%s): %s",
+							tc.Method, tc.Path, param.Name, truncatePayload(payload, 30), fr.Error))
+					} else if fr.Blocked {
 						ui.PrintWarning(fmt.Sprintf("[BLOCKED] %s %s (%s=%s)",
 							tc.Method, tc.Path, param.Name, truncatePayload(payload, 30)))
 					}

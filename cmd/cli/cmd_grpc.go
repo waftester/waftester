@@ -323,7 +323,6 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 
 				if err != nil {
 					fr.Error = err.Error()
-					fr.Blocked = true
 				} else {
 					fr.Blocked = result.Blocked
 					if len(result.Response) < 1000 {
@@ -333,7 +332,9 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 
 				results = append(results, fr)
 
-				if !jsonOutput && fr.Blocked {
+				if !jsonOutput && fr.Error != "" {
+					ui.PrintError(fmt.Sprintf("[ERROR] %s/%s: %s", svc, method.Name, fr.Error))
+				} else if !jsonOutput && fr.Blocked {
 					ui.PrintWarning(fmt.Sprintf("[BLOCKED] %s/%s: %s", svc, method.Name, truncatePayload(payload, 50)))
 				} else if !jsonOutput && !fr.Blocked {
 					fmt.Fprintf(os.Stderr, "[PASSED] %s/%s: %s\n", svc, method.Name, truncatePayload(payload, 50))
