@@ -135,6 +135,7 @@ func runSmuggle() {
 	}
 	if smuggleDispCtx != nil {
 		defer smuggleDispCtx.Close()
+		smuggleDispCtx.RegisterDetectionCallbacks(ctx)
 	}
 	smugglerCtx := ctx
 
@@ -391,6 +392,7 @@ func runRace() {
 	}
 	if raceDispCtx != nil {
 		defer raceDispCtx.Close()
+		raceDispCtx.RegisterDetectionCallbacks(ctx)
 	}
 	raceCtx := ctx
 
@@ -903,6 +905,10 @@ func runHeadless() {
 
 	ctx, ctxCancel := cli.SignalContext(30 * time.Second)
 	defer ctxCancel()
+
+	if headlessDispCtx != nil {
+		headlessDispCtx.RegisterDetectionCallbacks(ctx)
+	}
 
 	// Emit start event for scan lifecycle hooks
 	if headlessDispCtx != nil {

@@ -836,3 +836,30 @@ func TestAllAttackCommands_HaveNoDetectFlag(t *testing.T) {
 		}
 	}
 }
+
+// TestMiscCommands_RegisterDetectionCallbacks verifies smuggle, race, and headless
+// commands in cmd_misc.go call RegisterDetectionCallbacks on their dispatcher context.
+// Regression test for findings #23-25.
+func TestMiscCommands_RegisterDetectionCallbacks(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(src)
+
+	commands := []struct {
+		name     string
+		dispName string
+	}{
+		{"smuggle", "smuggleDispCtx"},
+		{"race", "raceDispCtx"},
+		{"headless", "headlessDispCtx"},
+	}
+
+	for _, c := range commands {
+		expected := c.dispName + ".RegisterDetectionCallbacks("
+		if !strings.Contains(content, expected) {
+			t.Errorf("%s command must call %s.RegisterDetectionCallbacks()", c.name, c.dispName)
+		}
+	}
+}
