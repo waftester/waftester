@@ -877,6 +877,8 @@ func applyFilters(result *ScanResult, f *scanFilterConfig) {
 				result.CSRF.Evidence = ""
 			}
 			tally("csrf", result.CSRF.Severity)
+		} else {
+			result.CSRF = nil
 		}
 	}
 
@@ -889,6 +891,8 @@ func applyFilters(result *ScanResult, f *scanFilterConfig) {
 				result.Clickjack.Evidence = ""
 			}
 			tally("clickjack", result.Clickjack.Severity)
+		} else {
+			result.Clickjack = nil
 		}
 	}
 

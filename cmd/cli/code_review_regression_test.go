@@ -754,3 +754,25 @@ func TestRaceCommand_AlwaysProducesOutput(t *testing.T) {
 		t.Error("race -o must write output file even when no vulns found (condition must not check len(vulns))")
 	}
 }
+
+// Test #41: CSRF/Clickjack severity filter must nil out results when severity doesn't match
+func TestSeverityFilter_CSRFClickjack_ElseNil(t *testing.T) {
+	src, err := os.ReadFile("cmd_scan_filter.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(src)
+
+	// Both CSRF and Clickjack blocks must have an else clause that nils out the result
+	for _, scanner := range []string{"CSRF", "Clickjack"} {
+		// Find the scanner block and check it has "else {" after the severity check
+		blockStart := strings.Index(content, "// "+scanner)
+		if blockStart < 0 {
+			t.Fatalf("%s block not found in cmd_scan_filter.go", scanner)
+		}
+		block := content[blockStart : blockStart+400]
+		if !strings.Contains(block, "else {") || !strings.Contains(block, "result."+scanner+" = nil") {
+			t.Errorf("%s: severity filter must nil out result when severity doesn't match (needs else clause)", scanner)
+		}
+	}
+}
