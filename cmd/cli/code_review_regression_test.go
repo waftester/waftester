@@ -277,3 +277,21 @@ func TestScanNoRateLimitClampToOne(t *testing.T) {
 		t.Error("per-host limiter must be guarded by RateLimit > 0")
 	}
 }
+
+// H2 (logical-order): Tamper names must be validated before engine construction.
+func TestScanTamperValidationBeforeEngine(t *testing.T) {
+	src, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_scan.go: %v", err)
+	}
+	content := string(src)
+
+	validateIdx := strings.Index(content, "ValidateTamperNames(customList)")
+	engineIdx := strings.Index(content, "tamperEngine = tampers.NewEngine")
+	if validateIdx < 0 || engineIdx < 0 {
+		t.Fatal("expected ValidateTamperNames and NewEngine in cmd_scan.go")
+	}
+	if validateIdx > engineIdx {
+		t.Error("tamper validation must happen before engine construction")
+	}
+}

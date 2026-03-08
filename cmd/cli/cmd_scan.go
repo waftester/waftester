@@ -316,24 +316,30 @@ func runScan() {
 			}
 		}
 
-		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
-			Profile:       tamperProfile,
-			CustomTampers: tampers.ParseTamperList(*cfg.Tamper.List),
-			WAFVendor:     wafVendor,
-			StrategyHints: strategyHints,
-			EnableMetrics: true,
-		})
-
-		// Validate custom tampers if specified
+		// Validate custom tampers before engine construction so only valid
+		// names reach NewEngine. Invalid names would be silently ignored by
+		// the engine, confusing the user.
+		customList := tampers.ParseTamperList(*cfg.Tamper.List)
 		if *cfg.Tamper.List != "" {
-			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*cfg.Tamper.List))
+			valid, invalid := tampers.ValidateTamperNames(customList)
 			if len(invalid) > 0 {
 				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
 			}
 			if len(valid) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
 			}
-		} else if *cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected) {
+			customList = valid
+		}
+
+		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
+			Profile:       tamperProfile,
+			CustomTampers: customList,
+			WAFVendor:     wafVendor,
+			StrategyHints: strategyHints,
+			EnableMetrics: true,
+		})
+
+		if *cfg.Tamper.List == "" && (*cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected)) {
 			selectedTampers := tamperEngine.GetSelectedTampers()
 			if len(strategyHints) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s (strategy hints: %d): %s",
