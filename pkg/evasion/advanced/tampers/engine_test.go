@@ -19,11 +19,11 @@ func TestNewEngine(t *testing.T) {
 
 func TestEngineProfiles(t *testing.T) {
 	tests := []struct {
-		name        string
-		profile     Profile
-		wafVendor   string
-		minTampers  int
-		maxTampers  int
+		name       string
+		profile    Profile
+		wafVendor  string
+		minTampers int
+		maxTampers int
 	}{
 		{
 			name:       "stealth profile",

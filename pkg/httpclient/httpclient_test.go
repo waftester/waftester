@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -299,59 +300,91 @@ func TestNoRawHTTPClient(t *testing.T) {
 	}
 }
 
+// cachedASTFile holds pre-parsed AST for a Go source file.
+type cachedASTFile struct {
+	absPath string
+	fset    *token.FileSet
+	node    *ast.File
+}
+
+var (
+	_astCache     []*cachedASTFile
+	_astCacheOnce sync.Once
+	_astCacheRoot string
+)
+
+// loadASTCache walks pkg/ and cmd/ once, parsing all non-test Go files.
+func loadASTCache(t *testing.T) (string, []*cachedASTFile) {
+	t.Helper()
+	_astCacheOnce.Do(func() {
+		_astCacheRoot = findProjectRoot(t)
+		for _, dir := range []string{"pkg", "cmd"} {
+			dirPath := filepath.Join(_astCacheRoot, dir)
+			if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+				continue
+			}
+			_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				content, err := os.ReadFile(path)
+				if err != nil {
+					return nil
+				}
+				fset := token.NewFileSet()
+				node, parseErr := parser.ParseFile(fset, path, content, parser.ParseComments)
+				if parseErr != nil {
+					return nil
+				}
+				_astCache = append(_astCache, &cachedASTFile{
+					absPath: path,
+					fset:    fset,
+					node:    node,
+				})
+				return nil
+			})
+		}
+	})
+	return _astCacheRoot, _astCache
+}
+
 func findRawHTTPClients(t *testing.T) []string {
 	t.Helper()
 
+	root, files := loadASTCache(t)
 	var violations []string
-	root := findProjectRoot(t)
 
-	// Files that legitimately need custom http.Client configuration
 	excludePatterns := []string{
-		"httpclient.go", // The factory itself
-		"_test.go",      // All tests can create clients for testing
-		"ja3.go",        // JA3 fingerprinting needs custom transport
-		"transport.go",  // detection/transport.go wraps existing transports
+		"httpclient.go",
+		"_test.go",
+		"ja3.go",
+		"transport.go",
 	}
 
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+	for _, f := range files {
+		skip := false
+		for _, pattern := range excludePatterns {
+			if strings.Contains(f.absPath, pattern) {
+				skip = true
+				break
+			}
+		}
+		if skip {
 			continue
 		}
 
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-
-			for _, pattern := range excludePatterns {
-				if strings.Contains(path, pattern) {
-					return nil
-				}
-			}
-
-			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-			if err != nil {
-				return nil
-			}
-
-			ast.Inspect(node, func(n ast.Node) bool {
-				// Look for &http.Client{} or http.Client{}
-				if unary, ok := n.(*ast.UnaryExpr); ok {
-					if comp, ok := unary.X.(*ast.CompositeLit); ok {
-						if isHTTPClientType(comp.Type) {
-							pos := fset.Position(comp.Pos())
-							relPath, _ := filepath.Rel(root, pos.Filename)
-							violations = append(violations,
-								relPath+":"+strconv.Itoa(pos.Line)+": &http.Client{}")
-						}
+		ast.Inspect(f.node, func(n ast.Node) bool {
+			if unary, ok := n.(*ast.UnaryExpr); ok {
+				if comp, ok := unary.X.(*ast.CompositeLit); ok {
+					if isHTTPClientType(comp.Type) {
+						pos := f.fset.Position(comp.Pos())
+						relPath, _ := filepath.Rel(root, pos.Filename)
+						violations = append(violations,
+							relPath+":"+strconv.Itoa(pos.Line)+": &http.Client{}")
 					}
 				}
-				return true
-			})
-
-			return nil
+			}
+			return true
 		})
 	}
 
@@ -384,55 +417,40 @@ func TestNoRawHTTPTransport(t *testing.T) {
 func findRawHTTPTransports(t *testing.T) []string {
 	t.Helper()
 
+	root, files := loadASTCache(t)
 	var violations []string
-	root := findProjectRoot(t)
 
-	// Files that legitimately need custom http.Transport
 	excludePatterns := []string{
-		"httpclient.go", // The factory itself builds transports
-		"_test.go",      // Tests can create transports for testing
-		"ja3.go",        // JA3 fingerprinting needs custom transport config
-		"transport.go",  // detection/transport.go wraps transports
+		"httpclient.go",
+		"_test.go",
+		"ja3.go",
+		"transport.go",
 	}
 
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+	for _, f := range files {
+		skip := false
+		for _, pattern := range excludePatterns {
+			if strings.Contains(f.absPath, pattern) {
+				skip = true
+				break
+			}
+		}
+		if skip {
 			continue
 		}
 
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-
-			for _, pattern := range excludePatterns {
-				if strings.Contains(path, pattern) {
-					return nil
-				}
-			}
-
-			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-			if err != nil {
-				return nil
-			}
-
-			ast.Inspect(node, func(n ast.Node) bool {
-				if unary, ok := n.(*ast.UnaryExpr); ok {
-					if comp, ok := unary.X.(*ast.CompositeLit); ok {
-						if isHTTPTransportType(comp.Type) {
-							pos := fset.Position(comp.Pos())
-							relPath, _ := filepath.Rel(root, pos.Filename)
-							violations = append(violations,
-								relPath+":"+strconv.Itoa(pos.Line)+": &http.Transport{}")
-						}
+		ast.Inspect(f.node, func(n ast.Node) bool {
+			if unary, ok := n.(*ast.UnaryExpr); ok {
+				if comp, ok := unary.X.(*ast.CompositeLit); ok {
+					if isHTTPTransportType(comp.Type) {
+						pos := f.fset.Position(comp.Pos())
+						relPath, _ := filepath.Rel(root, pos.Filename)
+						violations = append(violations,
+							relPath+":"+strconv.Itoa(pos.Line)+": &http.Transport{}")
 					}
 				}
-				return true
-			})
-
-			return nil
+			}
+			return true
 		})
 	}
 

@@ -949,7 +949,7 @@ func TestFuzzErrorNotConflatedWithBlock(t *testing.T) {
 // #33-36: All fuzz/protocol commands must have --stream flag.
 func TestStreamFlagExists(t *testing.T) {
 	files := []string{
-		"cmd_misc.go",    // race, smuggle, headless
+		"cmd_misc.go", // race, smuggle, headless
 		"cmd_grpc.go",
 		"cmd_soap.go",
 		"cmd_openapi.go",

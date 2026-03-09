@@ -8,11 +8,11 @@
 package contracts
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -34,60 +34,90 @@ type violation struct {
 	Text string
 }
 
-// scanFiles walks all .go files under dirs, skipping test files and
-// allowlisted paths, and returns violations for lines matching pattern.
+// cachedSourceLine holds pre-read source file data for contracts scanning.
+type cachedSourceLine struct {
+	relPath string // forward-slash relative path
+	lines   []string
+}
+
+var (
+	_sourceCache     []*cachedSourceLine
+	_sourceCacheOnce sync.Once
+	_sourceCacheRoot string
+)
+
+// loadSourceCache walks pkg/ and cmd/ once, reading all non-test Go files.
+// Results are cached via sync.Once for reuse across contract tests.
+func loadSourceCache(t *testing.T) (string, []*cachedSourceLine) {
+	t.Helper()
+	_sourceCacheOnce.Do(func() {
+		_sourceCacheRoot = repoRoot(t)
+		for _, dir := range []string{"pkg", "cmd"} {
+			base := filepath.Join(_sourceCacheRoot, dir)
+			_ = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				content, err := os.ReadFile(path)
+				if err != nil {
+					return nil
+				}
+				rel, _ := filepath.Rel(_sourceCacheRoot, path)
+				rel = filepath.ToSlash(rel)
+				_sourceCache = append(_sourceCache, &cachedSourceLine{
+					relPath: rel,
+					lines:   strings.Split(string(content), "\n"),
+				})
+				return nil
+			})
+		}
+	})
+	return _sourceCacheRoot, _sourceCache
+}
+
+// scanFiles iterates cached source files, skipping allowlisted paths,
+// and returns violations for lines matching pattern.
 func scanFiles(t *testing.T, root string, dirs []string, pattern *regexp.Regexp, allowlist map[string]string) []violation {
 	t.Helper()
+	_, files := loadSourceCache(t)
 	var violations []violation
 
-	for _, dir := range dirs {
-		base := filepath.Join(root, filepath.FromSlash(dir))
-		_ = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-			// Skip test files — contracts only govern production code
-			if strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
+	// Build directory prefix set
+	dirPrefixes := make([]string, len(dirs))
+	for i, dir := range dirs {
+		dirPrefixes[i] = filepath.ToSlash(dir) + "/"
+	}
 
-			rel, _ := filepath.Rel(root, path)
-			rel = filepath.ToSlash(rel)
-
-			// Check allowlist
-			if _, ok := allowlist[rel]; ok {
-				return nil
+	for _, f := range files {
+		// Check if file is in one of the requested directories
+		inDir := false
+		for _, prefix := range dirPrefixes {
+			if strings.HasPrefix(f.relPath, prefix) {
+				inDir = true
+				break
 			}
+		}
+		if !inDir {
+			continue
+		}
 
-			f, err := os.Open(path)
-			if err != nil {
-				return nil
-			}
-			defer f.Close()
+		if _, ok := allowlist[f.relPath]; ok {
+			continue
+		}
 
-			scanner := bufio.NewScanner(f)
-			lineNum := 0
-			for scanner.Scan() {
-				lineNum++
-				line := scanner.Text()
-				// Skip comments
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "//") {
-					continue
-				}
-				if pattern.MatchString(line) {
-					violations = append(violations, violation{
-						File: rel,
-						Line: lineNum,
-						Text: strings.TrimSpace(line),
-					})
-				}
+		for lineNum, line := range f.lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") {
+				continue
 			}
-			return nil
-		})
+			if pattern.MatchString(line) {
+				violations = append(violations, violation{
+					File: f.relPath,
+					Line: lineNum + 1,
+					Text: strings.TrimSpace(line),
+				})
+			}
+		}
 	}
 	return violations
 }

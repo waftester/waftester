@@ -11,11 +11,66 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// cachedGoFile holds pre-parsed AST and raw content for a Go source file.
+type cachedGoFile struct {
+	relPath string
+	absPath string
+	fset    *token.FileSet
+	node    *ast.File
+	content []byte
+}
+
+var (
+	_cachedGoFiles     []*cachedGoFile
+	_cachedGoFilesOnce sync.Once
+	_cachedGoFilesRoot string
+)
+
+// loadGoFileCache walks pkg/ and cmd/ once, parsing all non-test Go files.
+// Results are cached via sync.Once for reuse across structural tests.
+func loadGoFileCache(t *testing.T) (string, []*cachedGoFile) {
+	t.Helper()
+	_cachedGoFilesOnce.Do(func() {
+		_cachedGoFilesRoot = findProjectRoot(t)
+		for _, dir := range []string{"pkg", "cmd"} {
+			dirPath := filepath.Join(_cachedGoFilesRoot, dir)
+			if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+				continue
+			}
+			_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				content, err := os.ReadFile(path)
+				if err != nil {
+					return nil
+				}
+				fset := token.NewFileSet()
+				node, parseErr := parser.ParseFile(fset, path, content, parser.ParseComments)
+				if parseErr != nil {
+					return nil
+				}
+				relPath, _ := filepath.Rel(_cachedGoFilesRoot, path)
+				_cachedGoFiles = append(_cachedGoFiles, &cachedGoFile{
+					relPath: relPath,
+					absPath: path,
+					fset:    fset,
+					node:    node,
+					content: content,
+				})
+				return nil
+			})
+		}
+	})
+	return _cachedGoFilesRoot, _cachedGoFiles
+}
 
 // TestVersionConsistency ensures all version references match defaults.Version
 func TestVersionConsistency(t *testing.T) {
@@ -31,68 +86,35 @@ func TestVersionConsistency(t *testing.T) {
 	}
 
 	// Scan for hardcoded version strings that should use defaults.Version
-	root := findProjectRoot(t)
+	root, files := loadGoFileCache(t)
 	var violations []string
 
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+	versionPattern := regexp.MustCompile(`(?m)Version\s*[:=]\s*"(\d+\.\d+\.\d+)"`)
+	for _, f := range files {
+		if strings.HasSuffix(f.absPath, "defaults.go") ||
+			strings.Contains(f.absPath, "banner.go") ||
+			strings.Contains(f.absPath, "update") ||
+			strings.Contains(f.absPath, "workflow") {
 			continue
 		}
 
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-
-			// Skip test files and the definition files
-			if strings.HasSuffix(path, "_test.go") ||
-				strings.HasSuffix(path, "defaults.go") ||
-				strings.Contains(path, "banner.go") { // banner.go uses defaults.Version
-				return nil
-			}
-
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return nil
-			}
-			contentStr := string(content)
-
-			// Skip files with legitimate non-waftester version references
-			// - update/ package: deals with payload versions
-			// - workflow/ package: workflow definition versions
-			// - SARIF spec version: always "2.1.0" per SARIF standard
-			if strings.Contains(path, "update") ||
-				strings.Contains(path, "workflow") {
-				return nil
-			}
-
-			// Look for hardcoded version strings like Version = "X.Y.Z" or Version: "X.Y.Z"
-			// Exclude SARIF spec version (schema line contains "sarif")
-			versionPattern := regexp.MustCompile(`(?m)Version\s*[:=]\s*"(\d+\.\d+\.\d+)"`)
-			lines := strings.Split(contentStr, "\n")
-			for i, line := range lines {
-				if matches := versionPattern.FindStringSubmatch(line); len(matches) > 1 {
-					// Skip if this is SARIF spec version (check surrounding context)
-					contextStart := max(0, i-3)
-					contextEnd := min(len(lines), i+3)
-					context := strings.Join(lines[contextStart:contextEnd], "\n")
-					if strings.Contains(strings.ToLower(context), "sarif") &&
-						strings.Contains(strings.ToLower(context), "schema") {
-						continue
-					}
-					// Skip if this is GitLab SAST format version (spec version, not waftester version)
-					if strings.Contains(strings.ToLower(context), "gitlab") &&
-						strings.Contains(strings.ToLower(context), "sast") {
-						continue
-					}
-					relPath, _ := filepath.Rel(root, path)
-					violations = append(violations, relPath+":"+strconv.Itoa(i+1)+": hardcoded Version = \""+matches[1]+"\"")
+		lines := strings.Split(string(f.content), "\n")
+		for i, line := range lines {
+			if matches := versionPattern.FindStringSubmatch(line); len(matches) > 1 {
+				contextStart := max(0, i-3)
+				contextEnd := min(len(lines), i+3)
+				context := strings.Join(lines[contextStart:contextEnd], "\n")
+				if strings.Contains(strings.ToLower(context), "sarif") &&
+					strings.Contains(strings.ToLower(context), "schema") {
+					continue
 				}
+				if strings.Contains(strings.ToLower(context), "gitlab") &&
+					strings.Contains(strings.ToLower(context), "sast") {
+					continue
+				}
+				violations = append(violations, f.relPath+":"+strconv.Itoa(i+1)+": hardcoded Version = \""+matches[1]+"\"")
 			}
-
-			return nil
-		})
+		}
 	}
 
 	if len(violations) > 0 {
@@ -652,44 +674,90 @@ func TestNoHardcodedUserAgent(t *testing.T) {
 	}
 }
 
-// findHardcodedStrings walks the codebase and finds struct field assignments with hardcoded string literals
+// findHardcodedStrings searches cached Go files for struct field assignments with hardcoded string literals
 func findHardcodedStrings(t *testing.T, fieldName string, forbiddenValues []string, excludePatterns []string) []string {
 	t.Helper()
 
+	root, files := loadGoFileCache(t)
 	var violations []string
-	root := findProjectRoot(t)
 
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+	for _, f := range files {
+		skip := false
+		for _, pattern := range excludePatterns {
+			if strings.Contains(f.absPath, pattern) {
+				skip = true
+				break
+			}
+		}
+		if skip {
 			continue
 		}
 
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
+		ast.Inspect(f.node, func(n ast.Node) bool {
+			if kv, ok := n.(*ast.KeyValueExpr); ok {
+				if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == fieldName {
+					if lit, ok := kv.Value.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+						val := strings.Trim(lit.Value, `"`)
+						for _, forbidden := range forbiddenValues {
+							if val == forbidden {
+								pos := f.fset.Position(lit.Pos())
+								relPath, _ := filepath.Rel(root, pos.Filename)
+								violations = append(violations,
+									relPath+":"+strconv.Itoa(pos.Line)+": "+fieldName+" = "+lit.Value)
+							}
+						}
+					}
+				}
 			}
+			return true
+		})
+	}
 
-			for _, pattern := range excludePatterns {
-				if strings.Contains(path, pattern) {
-					return nil
+	return violations
+}
+
+// findHardcodedValues searches cached Go files for struct field assignments with hardcoded numeric values
+func findHardcodedValues(t *testing.T, fieldName string, minVal, maxVal int, excludePatterns []string) []string {
+	t.Helper()
+
+	root, files := loadGoFileCache(t)
+	var violations []string
+
+	for _, f := range files {
+		skip := false
+		for _, pattern := range excludePatterns {
+			if strings.Contains(f.absPath, pattern) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		ast.Inspect(f.node, func(n ast.Node) bool {
+			if kv, ok := n.(*ast.KeyValueExpr); ok {
+				if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == fieldName {
+					if lit, ok := kv.Value.(*ast.BasicLit); ok && lit.Kind == token.INT {
+						val, _ := strconv.Atoi(lit.Value)
+						if val >= minVal && val <= maxVal {
+							pos := f.fset.Position(lit.Pos())
+							relPath, _ := filepath.Rel(root, pos.Filename)
+							violations = append(violations,
+								relPath+":"+strconv.Itoa(pos.Line)+": "+fieldName+" = "+lit.Value)
+						}
+					}
 				}
 			}
 
-			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-			if err != nil {
-				return nil
-			}
-
-			ast.Inspect(node, func(n ast.Node) bool {
-				if kv, ok := n.(*ast.KeyValueExpr); ok {
-					if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == fieldName {
-						if lit, ok := kv.Value.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-							val := strings.Trim(lit.Value, `"`)
-							for _, forbidden := range forbiddenValues {
-								if val == forbidden {
-									pos := fset.Position(lit.Pos())
+			if assign, ok := n.(*ast.AssignStmt); ok {
+				for i, lhs := range assign.Lhs {
+					if sel, ok := lhs.(*ast.SelectorExpr); ok {
+						if sel.Sel.Name == fieldName && i < len(assign.Rhs) {
+							if lit, ok := assign.Rhs[i].(*ast.BasicLit); ok && lit.Kind == token.INT {
+								val, _ := strconv.Atoi(lit.Value)
+								if val >= minVal && val <= maxVal {
+									pos := f.fset.Position(lit.Pos())
 									relPath, _ := filepath.Rel(root, pos.Filename)
 									violations = append(violations,
 										relPath+":"+strconv.Itoa(pos.Line)+": "+fieldName+" = "+lit.Value)
@@ -698,100 +766,10 @@ func findHardcodedStrings(t *testing.T, fieldName string, forbiddenValues []stri
 						}
 					}
 				}
-				return true
-			})
+			}
 
-			return nil
+			return true
 		})
-	}
-
-	return violations
-}
-
-// findHardcodedValues walks the codebase and finds struct field assignments with hardcoded numeric values
-func findHardcodedValues(t *testing.T, fieldName string, minVal, maxVal int, excludePatterns []string) []string {
-	t.Helper()
-
-	var violations []string
-	root := findProjectRoot(t)
-
-	// Walk pkg/ and cmd/ directories
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			continue
-		}
-
-		err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil // Skip errors
-			}
-
-			// Skip non-Go files
-			if info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-
-			// Skip excluded patterns
-			for _, pattern := range excludePatterns {
-				if strings.Contains(path, pattern) {
-					return nil
-				}
-			}
-
-			// Parse the file
-			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-			if err != nil {
-				return nil // Skip parse errors
-			}
-
-			// Find hardcoded values
-			ast.Inspect(node, func(n ast.Node) bool {
-				// Look for key-value expressions in composite literals (struct initialization)
-				if kv, ok := n.(*ast.KeyValueExpr); ok {
-					if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == fieldName {
-						// Check if value is a basic literal (hardcoded number)
-						if lit, ok := kv.Value.(*ast.BasicLit); ok && lit.Kind == token.INT {
-							val, _ := strconv.Atoi(lit.Value)
-							if val >= minVal && val <= maxVal {
-								pos := fset.Position(lit.Pos())
-								relPath, _ := filepath.Rel(root, pos.Filename)
-								violations = append(violations,
-									relPath+":"+strconv.Itoa(pos.Line)+": "+fieldName+" = "+lit.Value)
-							}
-						}
-					}
-				}
-
-				// Look for assignment statements: config.Concurrency = 10
-				if assign, ok := n.(*ast.AssignStmt); ok {
-					for i, lhs := range assign.Lhs {
-						if sel, ok := lhs.(*ast.SelectorExpr); ok {
-							if sel.Sel.Name == fieldName && i < len(assign.Rhs) {
-								if lit, ok := assign.Rhs[i].(*ast.BasicLit); ok && lit.Kind == token.INT {
-									val, _ := strconv.Atoi(lit.Value)
-									if val >= minVal && val <= maxVal {
-										pos := fset.Position(lit.Pos())
-										relPath, _ := filepath.Rel(root, pos.Filename)
-										violations = append(violations,
-											relPath+":"+strconv.Itoa(pos.Line)+": "+fieldName+" = "+lit.Value)
-									}
-								}
-							}
-						}
-					}
-				}
-
-				return true
-			})
-
-			return nil
-		})
-
-		if err != nil {
-			t.Logf("Warning: error walking %s: %v", dir, err)
-		}
 	}
 
 	return violations
@@ -822,92 +800,57 @@ func findProjectRoot(t *testing.T) string {
 
 // TestNoHardcodedOWASPData ensures OWASP Top 10 data is only defined in defaults/owasp.go
 func TestNoHardcodedOWASPData(t *testing.T) {
-	root := findProjectRoot(t)
+	_, files := loadGoFileCache(t)
 	var violations []string
 
-	// Patterns that indicate OWASP Top 10 data duplication
-	// This catches struct/slice literals that define OWASP codes with descriptions
-	// e.g., {"A01:2021", "Broken Access Control"} or Code: "A01:2021", Name: "..."
 	owaspCodePattern := regexp.MustCompile(`"A(0[1-9]|10):2021`)
-
-	// Variable definitions that likely contain duplicated OWASP Top 10 data
-	// Match: var owaspTop10Mapping = []struct or var pdfOWASPTop10 = ...
-	// Must include "Top10" or "top10" to avoid false positives like "owaspSources"
 	owaspVarDefPattern := regexp.MustCompile(`^var\s+(owasp[Tt]op10|pdfOWASP[Tt]op10|owaspURLMap)\w*\s*=\s*(\[\]struct|\[\]string|map\[)`)
 
-	// Files that are allowed to have OWASP data
 	allowedFiles := []string{
-		"owasp.go",       // The centralized source
-		"_test.go",       // Test files (test data is OK)
-		"html_report.go", // Template data (uses OWASP strings in test fixtures)
+		"owasp.go",
+		"html_report.go",
 	}
 
-	for _, dir := range []string{"pkg", "cmd"} {
-		dirPath := filepath.Join(root, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+	for _, f := range files {
+		skip := false
+		for _, allowed := range allowedFiles {
+			if strings.HasSuffix(f.absPath, allowed) {
+				skip = true
+				break
+			}
+		}
+		if skip {
 			continue
 		}
 
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
+		lines := strings.Split(string(f.content), "\n")
+
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+				continue
 			}
 
-			// Skip allowed files
-			for _, allowed := range allowedFiles {
-				if strings.HasSuffix(path, allowed) {
-					return nil
-				}
+			if owaspVarDefPattern.MatchString(trimmed) {
+				violations = append(violations,
+					f.relPath+":"+strconv.Itoa(i+1)+": OWASP Top 10 variable definition - use defaults.OWASPTop10 instead")
 			}
 
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return nil
-			}
-			contentStr := string(content)
-			lines := strings.Split(contentStr, "\n")
-
-			relPath, _ := filepath.Rel(root, path)
-
-			// Check for OWASP variable definitions (not just usage)
-			for i, line := range lines {
-				// Skip comments
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
-					continue
-				}
-
-				// Check for OWASP Top 10 mapping variable definitions with struct/slice/map literals
-				if owaspVarDefPattern.MatchString(trimmed) {
+			if owaspCodePattern.MatchString(line) {
+				if strings.Contains(line, "Broken Access Control") ||
+					strings.Contains(line, "Cryptographic Failures") ||
+					strings.Contains(line, "Insecure Design") ||
+					strings.Contains(line, "Security Misconfiguration") ||
+					strings.Contains(line, "Vulnerable and Outdated") ||
+					strings.Contains(line, "Authentication Failures") ||
+					strings.Contains(line, "Integrity Failures") ||
+					strings.Contains(line, "Monitoring Failures") ||
+					strings.Contains(line, "Request Forgery") {
 					violations = append(violations,
-						relPath+":"+strconv.Itoa(i+1)+": OWASP Top 10 variable definition - use defaults.OWASPTop10 instead")
-				}
-
-				// Check for struct/map definitions with OWASP codes AND their full descriptions
-				// This catches things like:
-				//   {"A01:2021", "Broken Access Control"},
-				//   {"A02:2021", "Cryptographic Failures"},
-				// We look for lines that define OWASP codes with their full descriptions
-				if owaspCodePattern.MatchString(line) {
-					// Check if this is a struct/map definition (has both code and description)
-					// Avoid flagging simple string comparisons or single references
-					if strings.Contains(line, "Broken Access Control") ||
-						strings.Contains(line, "Cryptographic Failures") ||
-						strings.Contains(line, "Insecure Design") ||
-						strings.Contains(line, "Security Misconfiguration") ||
-						strings.Contains(line, "Vulnerable and Outdated") ||
-						strings.Contains(line, "Authentication Failures") ||
-						strings.Contains(line, "Integrity Failures") ||
-						strings.Contains(line, "Monitoring Failures") ||
-						strings.Contains(line, "Request Forgery") {
-						violations = append(violations,
-							relPath+":"+strconv.Itoa(i+1)+": hardcoded OWASP mapping - use defaults.OWASPTop10 instead")
-					}
+						f.relPath+":"+strconv.Itoa(i+1)+": hardcoded OWASP mapping - use defaults.OWASPTop10 instead")
 				}
 			}
-
-			return nil
-		})
+		}
 	}
 
 	if len(violations) > 0 {
