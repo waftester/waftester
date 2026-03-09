@@ -2235,7 +2235,7 @@ func TestEnumFlagsValidated(t *testing.T) {
 		file   string
 		marker string
 	}{
-		{"cmd/cli/cmd_misc.go", `"double_submit", "token_reuse", "limit_bypass", "toctou"`},
+		{"cmd/cli/cmd_misc.go", `race.AllAttackTypes()`},
 		{"cmd/cli/cmd_mutate.go", `exitWithError("--mode`},
 		{"cmd/cli/cmd_cloud.go", "at least one valid provider"},
 		{"cmd/cli/cmd_autoscan_flags.go", `"quick", "normal", "deep", "paranoid"`},

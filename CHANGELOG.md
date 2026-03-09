@@ -6,6 +6,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.9.49] - 2026-03-09
+
+### Added
+
+- **verify.sh quality gate** — Single `bash scripts/verify.sh` runs build + test (-race) + lint as the pre-commit gate
+- **72 negative/edge-case tests** — Coverage for bypass, race, template, and openapi edge cases (empty input, nil config, boundary values)
+- **Regression tests for fixes #1-61** — Test coverage for all 61 code-review findings to prevent regressions
+
+### Fixed
+
+- **39 code-review findings across cmd/cli** — Bulk fix covering panic recovery, detection callbacks, flag consistency, error handling, and exit code patterns
+- **Auto-scan freeze after Phase 9** — Deferred report generation until after assessment and browser phases complete
+- **Auto-scan discovery persistence** — Discovery results now written to discoveryFile for downstream phases
+- **Auto-scan progress tracking** — Added `Increment()` calls to resume skip paths so progress bar stays accurate
+- **Auto-scan anomaly registration** — `OnAnomaly` callback registered before WAF testing executor runs
+- **Auto-scan dry-run phase list** — Corrected to match actual execution phases
+- **Auto-scan early-phase cancellation** — Added `ctx.Err()` checks between early phases to abort promptly
+- **Auto-scan redundant WAF detection** — Skipped duplicate detection in assessment phase
+- **Auto-scan CI exit code** — Assessment grade now factors into CI exit code
+- **Auto-scan JS findings** — `fullReconResult` JS findings now fed into intelligence brain
+- **Auto-scan interim duration** — Uses `time.Since(startTime)` instead of stale duration variable
+- **Scan exit paths** — Replaced `os.Exit(0)` with return in early-exit paths
+- **Scan rate-limit clamping** — No longer silently clamps rate-limit 0 to 1 req/s; explicit error instead
+- **Scan tamper validation** — Validates tamper names before engine construction instead of failing mid-scan
+- **Scan panic recovery** — Added `defer/recover` to `runScanner` goroutine
+- **Scan config duplication** — Reuses `baseConfig()` instead of calling it twice
+- **Scan GraphQL locking** — Merged GraphQL scanner into single lock region to prevent races
+- **Scan detection callbacks** — Added `RegisterDetectionCallbacks` to smuggle, race, headless, and run commands
+- **Bypass output file** — Writes `-o` output file even when 0 bypasses found (consistent with scan)
+- **Bypass grace period** — Uses 30s grace period instead of HTTP timeout for retry logic
+- **Race generic attacks** — Now detects inconsistent responses in generic attack mode
+- **Race command output** — Always outputs JSON/file even with 0 vulnerabilities found
+- **Template path resolution** — Prevented double path resolution in `ToConfig` causing file-not-found errors
+- **Template target validation** — Validates target list before loading templates
+- **OpenAPI base URL validation** — Validates `baseURL` before starting fuzz
+- **Race command validation** — Validates all attack types including TOCTOU
+- **Workflow exit code** — Exits non-zero on engine error with partial results
+- **Exit code pattern** — Replaced `os.Exit(1)` with deferred `exitCode` pattern across 14 commands
+- **Panic recovery** — Added `defer/recover` to goroutines without panic recovery in 6 commands
+- **--no-detect flag** — Added to 8 commands that were missing it (smuggle, race, headless, grpc, soap, openapi, clickjack, probe)
+- **--stream flag** — Added to race, grpc, soap, openapi commands for streaming output
+- **--realistic flag** — Added to race command for realistic timing simulation
+- **--skip-verify flag** — Added to template command to skip target verification
+- **Error conflation** — GRPC, SOAP, OpenAPI no longer conflate HTTP errors with WAF blocks
+- **Tamper profile warning** — Warns on unknown tamper profile instead of silent fallthrough
+- **Severity filter** — Now properly excludes CSRF/Clickjack findings when filtered by severity
+- **Discover context timeout** — Scales with user-provided timeout settings instead of hardcoded 5m
+- **Unused flag cleanup** — Removed `--continue-on-error` flag from workflow (was registered but never read)
+- **Nuclei payload loading** — `loadUnifiedByCategory` now returns Nuclei payloads alongside built-in payloads
+- **Vendor exit code** — Fixed `exitCode` pattern and `RegisterDetectionCallbacks` wiring in vendor command
+- **Project root validation** — `getProjectRoot` validation no longer a no-op
+- **Test detection callbacks** — Added missing `RegisterDetectionCallbacks` to run command tests
+- **Structural test performance** — Cached AST/source walks in structural tests for faster execution
+
 ## [2.9.48] - 2026-03-07
 
 ### Fixed
@@ -1131,7 +1185,7 @@ Comprehensive audit identified and fixed 14 bugs across CLI, MCP server, core ex
 
 **Medium Priority:**
 - **Timeout flag misleading** (MED-2): `-timeout 30` means 30s per-request but 30-minute scan deadline. Clarified flag description and changed `*timeout*60*time.Second` to `time.Minute`.
-- **Mutation explosion** (MED-3): Bypass tool accepted unlimited payloads — 100 payloads �— encoders could silently generate 15K+ requests. Added guard rejecting >50 payloads with helpful guidance.
+- **Mutation explosion** (MED-3): Bypass tool accepted unlimited payloads — 100 payloads �— encoders could silently generate 15K+ requests. Added guard rejecting >50 payloads with helpful guidance.
 - **ReadOnlyHint wrong** (MED-4): `detect_waf`, `discover`, and `probe` tools marked `ReadOnlyHint: true` despite sending HTTP probes to targets. Fixed to `false` so MCP clients prompt user confirmation.
 - **Division by zero** (HIGH-3): `cmd_tests.go` divided by `Duration.Seconds()` for `RequestsPerSec` without checking for zero duration. Guarded with `secs > 0` check.
 
@@ -1179,7 +1233,7 @@ Production scans were returning `Blocked: 0, Bypassed: 0, Errors: 12` with 3340/
 
 - **Bug A — Stale global state across MCP scans**: `hosterrors` and `detection` singletons were never cleared between MCP scan invocations. A host marked as failing in scan 1 would be pre-poisoned for scan 2, causing immediate skip of all payloads. Fixed by adding `hosterrors.Clear()` + `detection.Default().Clear()` at the start of all 4 MCP async handlers (`scan`, `assess`, `bypass`, `discover`).
 
-- **Bug B — Rate limiter before skip check**: Skipped payloads were waiting for a rate-limit token before being discarded. With 3340 skipped payloads �— 20ms rate limit = 66 seconds wasted on payloads that would never be sent. Fixed by moving `hosterrors.Check()` and `ShouldSkipHost()` before `limiter.Wait()` in both `Execute()` and `ExecuteWithProgress()`.
+- **Bug B — Rate limiter before skip check**: Skipped payloads were waiting for a rate-limit token before being discarded. With 3340 skipped payloads �— 20ms rate limit = 66 seconds wasted on payloads that would never be sent. Fixed by moving `hosterrors.Check()` and `ShouldSkipHost()` before `limiter.Wait()` in both `Execute()` and `ExecuteWithProgress()`.
 
 - **Bug C — No death spiral detection**: When a host went down, all remaining payloads would be individually checked, skipped, and rate-limited — no early abort. Fixed by adding death spiral detection: after 50 completions, if >80% are skipped, the scan context is cancelled and remaining payloads are abandoned.
 
@@ -2186,7 +2240,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 - **Dispatcher Unit Tests** (`pkg/output/dispatcher/dispatcher_test.go`): 26 new tests
   - `TestNew_DefaultBatchSize`, `TestNew_CustomBatchSize` - configuration tests
-  - `TestDispatch_ConcurrentSafe` - race-safe with 10 goroutines �— 100 events
+  - `TestDispatch_ConcurrentSafe` - race-safe with 10 goroutines �— 100 events
   - `TestWriterFailure_OthersStillReceive` - failure isolation verification
   - `TestAsyncHooks_NonBlocking` vs `TestSyncHooks_Blocking` - hook behavior
   - `TestRegisterDuringDispatch_Race` - concurrent registration safety
@@ -2194,7 +2248,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 - **Core Race Tests** (`pkg/core/race_test.go`): 5 new tests
   - `TestExecutor_ConcurrentExecuteTest` - 50 payloads from multiple goroutines
-  - `TestExecutor_SharedHTTPClient_Race` - 100 goroutines �— 5 requests
+  - `TestExecutor_SharedHTTPClient_Race` - 100 goroutines �— 5 requests
   - `TestExecutor_RateLimiter_Race` - concurrent rate limit checks
   - `TestExecutor_Execute_Race` - full worker pool under load
   - `TestExecutor_OnResultCallback_Race` - callback thread safety
@@ -2202,7 +2256,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 - **Evasion Package Tests** (`pkg/evasion/advanced/tampers/tampers_test.go`): 11 new tests
   - `TestGetAllTampers_NotEmpty` - verifies 68 tampers registered
   - `TestTamper_Apply_Transforms` - verifies transformation behavior
-  - `TestTamper_ConcurrentApply` - 50 goroutines �— 100 iterations
+  - `TestTamper_ConcurrentApply` - 50 goroutines �— 100 iterations
   - `TestTamperChain_AppliesInOrder` - chain ordering verification
 
 - **Missing Package Tests**: 53 new tests across 4 packages
@@ -2223,7 +2277,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 - **Runner Race Tests** (`pkg/runner/runner_test.go`): 4 new tests
   - `TestRunner_Run_ConcurrentStatsUpdate` - stats consistency under load
   - `TestRunner_Run_CallbackRace` - thread-safe callbacks
-  - `TestRunner_HighConcurrency` - 100 targets �— 50 workers
+  - `TestRunner_HighConcurrency` - 100 targets �— 50 workers
   - `TestRunner_RunWithCallback_ConcurrentRace` - streaming callbacks
 
 - **Hook Contract Tests** (`pkg/output/hooks/hooks_test.go`): 6 new tests
@@ -2860,6 +2914,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ## [2.3.1] - 2026-01-31
 
+[2.9.49]: https://github.com/waftester/waftester/compare/v2.9.48...v2.9.49
 [2.9.48]: https://github.com/waftester/waftester/compare/v2.9.47...v2.9.48
 ### Added
 - Authenticated browser scanning with manual login support (MFA, CAPTCHA, SSO)
