@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.9.50] - 2026-03-22
+
+### Changed
+- **Go module dependencies** — Bumped 11 Go modules including MCP Go SDK 1.3.1 to 1.4.1 (DNS rebinding protection, cross-origin enforcement, case-sensitive JSON), OpenTelemetry 1.40.0 to 1.42.0, golang.org/x/net 0.51.0 to 0.52.0, golang.org/x/crypto 0.48.0 to 0.49.0 (SSH DoS hardening), and gRPC 1.79.1 to 1.79.2
+- **GitHub Actions dependencies** — Bumped 7 actions to Node 24 runtime: upload-artifact v7.0.0, docker/metadata-action v6.0.0, docker/setup-qemu-action v4.0.0, docker/setup-buildx-action v4.0.0, docker/login-action v4.0.0, docker/build-push-action v7.0.0, actions/setup-node v6.3.0
+
 ## [2.9.49] - 2026-03-09
 
 ### Added
@@ -2914,6 +2920,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ## [2.3.1] - 2026-01-31
 
+[2.9.50]: https://github.com/waftester/waftester/compare/v2.9.49...v2.9.50
 [2.9.49]: https://github.com/waftester/waftester/compare/v2.9.48...v2.9.49
 [2.9.48]: https://github.com/waftester/waftester/compare/v2.9.47...v2.9.48
 ### Added
